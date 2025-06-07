@@ -1,0 +1,59 @@
+name: CI/CD Pipeline Vollo
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v3
+    
+    - name: Configurar Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+    
+    - name: Instalar dependências Backend
+      working-directory: ./backend
+      run: npm install
+    
+    - name: Instalar dependências Frontend
+      working-directory: ./frontend
+      run: npm install
+    
+    - name: Rodar testes Backend
+      working-directory: ./backend
+      run: npm test
+    
+    - name: Construir imagens Docker
+      run: docker-compose build
+    
+    - name: Análise SonarQube
+      uses: sonarsource/sonarqube-scan-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Deploy em Servidor Remoto
+      uses: appleboy/ssh-action@master
+      with:
+        host: 201.23.3.86
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          cd /path/projeto-vollo
+          git pull origin main
+          docker-compose down
+          docker-compose up -d
