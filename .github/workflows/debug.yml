@@ -1,0 +1,41 @@
+name: Debug Workflow
+
+on: [push]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+      
+      - name: Verificar estrutura de pastas
+        run: |
+          pwd
+          ls -la
+          echo "Estrutura de pastas:"
+          find . -type d
+      
+      - name: Verificar Dockerfiles
+        run: |
+          echo "Conteúdo dos Dockerfiles:"
+          find . -name "Dockerfile"
+          for file in $(find . -name "Dockerfile"); do
+            echo "---- $file ----"
+            cat "$file"
+            echo ""
+          done
+      
+      - name: Tentar build manual
+        run: |
+          if [ -f "./backend/Dockerfile" ]; then
+            docker build -t backend-test ./backend
+          else
+            echo "Dockerfile do backend não encontrado"
+          fi
+          
+          if [ -f "./frontend/Dockerfile" ]; then
+            docker build -t frontend-test ./frontend
+          else
+            echo "Dockerfile do frontend não encontrado"
+          fi
