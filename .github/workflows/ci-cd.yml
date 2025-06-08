@@ -1,30 +1,112 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline Vollo
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout código
+        uses: actions/checkout@v3
       
-      - name: Build and Test
+      - name: Login Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Build e Push Backend
         run: |
-          docker-compose build
-          docker-compose run backend npm test
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/vollo-backend:${{ github.sha }} ./backend
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/vollo-backend:${{ github.sha }}
       
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        
-      - name: Deploy to Remote Server
+      - name: Build e Push Frontend
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/vollo-frontend:${{ github.sha }} ./frontend
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/vollo-frontend:${{ github.sha }}
+
+  sonarqube-analysis:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+      
+      - name: Configurar SSH
+        uses: webfactory/ssh-agent@v0.5.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+      
+      - name: Executar SonarQube no Servidor Remoto
+        run: |
+          ssh aluno@201.23.3.86 << EOF
+            # Criar diretório temporário
+            mkdir -p ~/sonarqube-temp
+            cd ~/sonarqube-temp
+
+            # Baixar docker-compose do SonarQube
+            cat > docker-compose.yml << INNER
+            version: '3'
+            services:
+              sonarqube:
+                image: sonarqube:community
+                ports:
+                  - "9000:9000"
+                environment:
+                  - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+            INNER
+
+            # Iniciar container SonarQube
+            docker-compose up -d
+
+            # Aguardar inicialização
+            sleep 30
+
+            # Clonar repositório
+            git clone https://github.com/${{ github.repository }}.git
+            cd ${{ github.event.repository.name }}
+
+            # Executar análise SonarQube
+            docker run --network host sonarsource/sonar-scanner-cli \
+              -Dsonar.host.url=http://localhost:9000 \
+              -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+              -Dsonar.projectKey=vollo-project \
+              -Dsonar.sources=. \
+              -Dsonar.exclusions=**/*.test.js,**/*.spec.js
+
+            # Capturar resultado da análise
+            SONAR_STATUS=$(docker run --network host sonarsource/sonar-scanner-cli \
+              -Dsonar.host.url=http://localhost:9000 \
+              -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+              -Dsonar.projectKey=vollo-project \
+              --format=json | jq '.qualityGate.status')
+
+            # Parar e remover container
+            docker-compose down
+
+            # Verificar status da análise
+            if [ "$SONAR_STATUS" != "\"OK\"" ]; then
+              echo "Análise de código falhou"
+              exit 1
+            fi
+          EOF
+
+  deploy:
+    needs: sonarqube-analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy no Servidor
         uses: appleboy/ssh-action@master
         with:
           host: 201.23.3.86
-          username: ${{ secrets.SERVER_USER }}
+          username: aluno
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /path/to/projeto-vollo
-            git pull origin main
+            cd /path/projeto-vollo
+            docker-compose pull
+            docker-compose down
             docker-compose up -d
