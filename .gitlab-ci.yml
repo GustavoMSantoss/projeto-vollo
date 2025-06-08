@@ -1,0 +1,54 @@
+stages:
+  - test
+  - sonar
+  - build
+  - deploy
+
+variables:
+  DOCKER_COMPOSE_FILE: docker-compose.prod.yml
+  REMOTE_SERVER: 201.23.3.86
+  REMOTE_USER: usuario_deploy
+  PROJECT_PATH: /opt/vollo-project
+
+before_script:
+  - docker info
+
+sonarqube-check:
+  stage: sonar
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script: 
+    - sonar-scanner -Dsonar.qualitygate.wait=true
+  only:
+    - main
+
+build-and-test:
+  stage: build
+  script:
+    - docker-compose -f docker-compose.yml build
+    - docker-compose -f docker-compose.yml up -d
+    - docker-compose -f docker-compose.yml run backend npm test
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  script:
+    - chmod 600 $SSH_PRIVATE_KEY
+    - ssh -i $SSH_PRIVATE_KEY $REMOTE_USER@$REMOTE_SERVER "mkdir -p $PROJECT_PATH"
+    - scp -i $SSH_PRIVATE_KEY docker-compose.prod.yml $REMOTE_USER@$REMOTE_SERVER:$PROJECT_PATH/docker-compose.yml
+    - scp -i $SSH_PRIVATE_KEY .env.prod $REMOTE_USER@$REMOTE_SERVER:$PROJECT_PATH/.env
+    - ssh -i $SSH_PRIVATE_KEY $REMOTE_USER@$REMOTE_SERVER "
+        cd $PROJECT_PATH && 
+        docker-compose down --rmi all || true &&
+        docker-compose pull &&
+        docker-compose up -d"
+  only:
+    - main
