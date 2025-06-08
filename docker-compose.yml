@@ -1,6 +1,7 @@
 version: '3'
 services:
   backend:
+    image: morerao/vollo-backend:v1
     build: ./backend
     ports:
       - "3000:3000"
@@ -9,14 +10,15 @@ services:
     environment:
       - DB_HOST=database
       - DB_PORT=5433
-
+  
   frontend:
+    image: morerao/vollo-frontend:v1
     build: ./frontend
     ports:
       - "3001:3001"
     depends_on:
       - backend
-
+  
   database:
     build: ./database
     ports:

@@ -21,13 +21,14 @@ jobs:
       
       - name: Build e Push Backend
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/vollo-backend:${{ github.sha }} ./backend
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/vollo-backend:${{ github.sha }}
+          docker build -t morerao/vollo-backend:${{ github.sha }} ./backend
+          docker push morerao/vollo-backend:${{ github.sha }}
       
       - name: Build e Push Frontend
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/vollo-frontend:${{ github.sha }} ./frontend
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/vollo-frontend:${{ github.sha }}
+          docker build -t morerao/vollo-frontend:${{ github.sha }} ./frontend
+          docker push morerao/vollo-frontend:${{ github.sha }}
+
 
   sonarqube-analysis:
     needs: build-and-push
