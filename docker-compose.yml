@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     image: morerao/vollo-backend:${BACKEND_TAG:-latest}
     ports:
-      - "8128:8218"
+      - "8128:8128"
     depends_on:
       database:
         condition: service_healthy
@@ -30,7 +30,7 @@ services:
     depends_on:
       - backend
     environment:
-      - BACKEND_URL=http://backend:3000
+      - BACKEND_URL=http://backend:8128
     volumes:
       - ./frontend:/app
       - /app/node_modules
