@@ -4,7 +4,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: morerao/vollo-backend:v1
+    image: morerao/vollo-backend:${BACKEND_TAG:-latest}
     ports:
       - "3000:3000"
     depends_on:
@@ -23,7 +23,7 @@ services:
       - vollo_network
 
   frontend:
-    image: morerao/vollo-frontend:v1
+    image: morerao/vollo-frontend:${FRONTEND_TAG:-latest}
     build: ./frontend
     ports:
       - "3001:3001"

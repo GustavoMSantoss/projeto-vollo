@@ -97,13 +97,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy no Servidor
-        uses: appleboy/ssh-action@v1.0.3  # Atualizado para versão mais recente
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: 201.23.3.86
           username: aluno
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /path/projeto-vollo
+            # Navegar para o diretório do projeto
+            cd ~/projeto-vollo
+            
+            # Atualizar imagens
             docker-compose pull
+            
+            # Parar containers atuais
             docker-compose down
+            
+            # Subir novos containers
             docker-compose up -d
+            
+            # Limpar imagens antigas
+            docker image prune -f
+
+
