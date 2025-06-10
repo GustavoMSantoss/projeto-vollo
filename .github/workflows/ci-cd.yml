@@ -1,17 +1,19 @@
 name: CI/CD Pipeline Vollo
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4  # Atualizado para v4
+        uses: actions/checkout@v4
       - name: Login Docker Hub
-        uses: docker/login-action@v3  # Atualizado para v3
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -29,9 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4  # Atualizado para v4
+        uses: actions/checkout@v4
       - name: Configurar SSH
-        uses: webfactory/ssh-agent@v0.9.0  # Atualizado para versão mais recente
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
       - name: Executar SonarQube no Servidor Remoto
@@ -44,7 +46,6 @@ jobs:
             # Criar diretório temporário
             mkdir -p ~/sonarqube-temp
             cd ~/sonarqube-temp
-            
             # Baixar docker-compose do SonarQube
             cat > docker-compose.yml << INNER
             version: '3'
@@ -56,17 +57,13 @@ jobs:
                 environment:
                   - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
             INNER
-            
             # Iniciar container SonarQube
             docker-compose up -d
-            
             # Aguardar inicialização
-            sleep 45  # Aumentado tempo de espera
-            
+            sleep 45
             # Clonar repositório
             git clone https://github.com/${{ github.repository }}.git
             cd ${{ github.event.repository.name }}
-            
             # Executar análise SonarQube
             docker run --network host sonarsource/sonar-scanner-cli \
               -Dsonar.host.url=http://localhost:9000 \
@@ -74,17 +71,14 @@ jobs:
               -Dsonar.projectKey=vollo-project \
               -Dsonar.sources=. \
               -Dsonar.exclusions=**/*.test.js,**/*.spec.js
-            
             # Capturar resultado da análise
             SONAR_STATUS=$(docker run --network host sonarsource/sonar-scanner-cli \
               -Dsonar.host.url=http://localhost:9000 \
               -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
               -Dsonar.projectKey=vollo-project \
               --format=json | jq -r '.qualityGate.status')
-            
             # Parar e remover container
             docker-compose down
-            
             # Verificar status da análise
             if [ "$SONAR_STATUS" != "OK" ]; then
               echo "Análise de código falhou"
@@ -105,17 +99,11 @@ jobs:
           script: |
             # Navegar para o diretório do projeto
             cd ~/projeto-vollo
-            
             # Atualizar imagens
             docker-compose pull
-            
             # Parar containers atuais
             docker-compose down
-            
             # Subir novos containers
             docker-compose up -d
-            
             # Limpar imagens antigas
             docker image prune -f
-
-
