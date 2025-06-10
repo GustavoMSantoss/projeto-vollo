@@ -1,14 +1,17 @@
 name: Debug Workflow
-
 on: [push]
-
 jobs:
   debug:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
-        uses: actions/checkout@v3
-      
+        uses: actions/checkout@v4
+
+      - name: Instalar Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+
       - name: Informações do sistema
         run: |
           echo "Versão do Docker:"
@@ -19,22 +22,36 @@ jobs:
           node --version
           echo "Versão do npm:"
           npm --version
-      
+
       - name: Verificar conteúdo dos Dockerfiles
         run: |
           echo "Dockerfile Backend:"
           cat ./backend/Dockerfile
           echo -e "\n\nDockerfile Frontend:"
           cat ./frontend/Dockerfile
-      
+
       - name: Verificar package.json
         run: |
           echo "Backend package.json:"
           cat ./backend/package.json
           echo -e "\n\nFrontend package.json:"
           cat ./frontend/package.json
-      
+
       - name: Tentar build com docker-compose
         run: |
           docker-compose config
           docker-compose build
+
+      - name: Listar arquivos no repositório
+        run: |
+          echo "Listando arquivos no diretório raiz:"
+          ls -la
+          echo -e "\nListando arquivos no backend:"
+          ls -la ./backend
+          echo -e "\nListando arquivos no frontend:"
+          ls -la ./frontend
+
+      - name: Verificar variáveis de ambiente
+        run: |
+          echo "Variáveis de ambiente:"
+          env
