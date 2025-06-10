@@ -5,8 +5,15 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:ci": "jest --passWithNoTests",
     "start": "node index.js",
     "dev": "nodemon index.js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": ["/node_modules/"],
+    "moduleFileExtensions": ["js"],
+    "testMatch": ["**/__tests__/**/*.js", "**/?(*.)+(spec|test).js"]
   },
   "devDependencies": {
     "jest": "^29.7.0",
