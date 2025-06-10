@@ -7,8 +7,10 @@ WORKDIR /app
 # Copiar arquivos de dependência primeiro
 COPY package*.json ./
 
-# Instalar dependências globais e locais
-RUN npm install -g npm@latest
+# Atualizar npm de forma compatível
+RUN npm install -g npm@10.8.2
+
+# Instalar dependências do projeto
 RUN npm install
 
 # Copiar todo o código fonte
