@@ -6,132 +6,126 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-      - name: Login Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build e Push Backend
-        run: |
-          docker build -t morerao/vollo-backend:${{ github.sha }} ./backend
-          docker push morerao/vollo-backend:${{ github.sha }}
-      - name: Build e Push Frontend
-        run: |
-          docker build -t morerao/vollo-frontend:${{ github.sha }} ./frontend
-          docker push morerao/vollo-frontend:${{ github.sha }}
-  
   sonarqube-analysis:
-    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
-      - name: Configurar SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
-      - name: Executar SonarQube no Servidor Remoto
-        env:
-          SSH_HOST: 201.23.3.86
-          SSH_USER: aluno
+
+      - name: Subir SonarQube temporário no servidor remoto (com checagem)
         run: |
-          ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
-          ssh $SSH_USER@$SSH_HOST << EOF
-            # Criar diretório temporário
-            mkdir -p ~/sonarqube-temp
-            cd ~/sonarqube-temp
-            # Baixar docker-compose do SonarQube
-            cat > docker-compose.yml << INNER
-            version: '3'
-            services:
-              sonarqube:
-                image: sonarqube:community
-                ports:
-                  - "9000:9000"
-                environment:
-                  - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
-            INNER
-            # Iniciar container SonarQube
-            docker-compose up -d
-            # Aguardar inicialização
-            sleep 45
-            # Clonar repositório
-            git clone https://github.com/${{ github.repository }}.git
-            cd ${{ github.event.repository.name }}
-            # Executar análise SonarQube
-            docker run --network host sonarsource/sonar-scanner-cli \
-              -Dsonar.host.url=http://localhost:9000 \
-              -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
-              -Dsonar.projectKey=vollo-project \
-              -Dsonar.sources=. \
-              -Dsonar.exclusions=**/*.test.js,**/*.spec.js
-            # Capturar resultado da análise
-            SONAR_STATUS=$(docker run --network host sonarsource/sonar-scanner-cli \
-              -Dsonar.host.url=http://localhost:9000 \
-              -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
-              -Dsonar.projectKey=vollo-project \
-              --format=json | jq -r '.qualityGate.status')
-            # Parar e remover container
-            docker-compose down
-            # Verificar status da análise
-            if [ "$SONAR_STATUS" != "OK" ]; then
-              echo "Análise de código falhou"
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
+            docker stop sonartmp || true && docker rm sonartmp || true
+            docker pull sonarqube:community
+            docker run -d --name sonartmp -p 8088:9000 sonarqube:community
+            sleep 10
+            if ! docker ps | grep sonartmp; then
+              echo "--- Falha ao iniciar SonarQube ---"
+              docker logs sonartmp || true
               exit 1
             fi
-          EOF
-          
+          '
+
+      - name: Download and install jq on remote server
+        run: |
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
+            wget -qO /home/aluno/jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 && chmod +x /home/aluno/jq
+          '
+
+      - name: Esperar SonarQube inicializar completamente via API
+        env:
+          SONAR_USER: admin
+          SONAR_PASS: admin
+        run: |
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
+            JQ_PATH="/home/aluno/jq"
+            echo "Aguardando SonarQube atingir status UP..."
+            for i in {1..50}; do
+              STATUS=$(curl -s -u "$SONAR_USER:$SONAR_PASS" "http://localhost:8088/api/system/status" | "$JQ_PATH" -r .status)
+              echo "Status atual: $STATUS"
+              if [ "$STATUS" = "UP" ]; then
+                echo "SonarQube online."
+                exit 0
+              fi
+              sleep 6
+            done
+            echo "SonarQube não subiu a tempo! Log:"
+            docker logs sonartmp
+            exit 1
+          '
+
+      - name: Criar token do admin via API REST
+        id: get_sonar_token
+        env:
+          SONAR_USER: admin
+          SONAR_PASS: admin
+        run: |
+          JQ_PATH="/home/aluno/jq"
+          SONAR_TOKEN=$(ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 "curl -s -u \"$SONAR_USER:$SONAR_PASS\" -X POST 'http://localhost:8/api/user_tokens/generate?name=ci-token' | \"$JQ_PATH\" -r .token")
+          echo "::add-mask::$SONAR_TOKEN"
+          echo "SONAR_TOKEN=$SONAR_TOKEN" >> $GITHUB_ENV
+
+      - name: Instalar SonarScanner CLI
+        run: |
+          curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+          unzip -o sonar-scanner.zip
+
+      - name: Rodar análise SonarScanner
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+        run: |
+          export PATH="$PWD/sonar-scanner-5.0.1.3006-linux/bin:$PATH"
+          sonar-scanner \
+            -Dsonar.projectKey=vollo-project \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=http://201.23.3.86:8133 \
+            -Dsonar.token=$SONAR_TOKEN
+
+      - name: Validar Quality Gate do SonarQube remoto
+        env:
+          SONAR_USER: admin
+          SONAR_PASS: admin
+        run: |
+          echo "Aguardando Quality Gate..."
+          sleep 10
+          for i in {1..30}; do
+            QG=$(curl -u $SONAR_USER:$SONAR_PASS "http://201.23.3.86:8088/api/qualitygates/project_status?projectKey=vollo-project" | jq -r .projectStatus.status)
+            echo "Quality Gate: $QG"
+            if [[ "$QG" == "OK" ]]; then exit 0; fi
+            if [[ "$QG" == "ERROR" ]]; then echo "Quality Gate falhou"; exit 1; fi
+            sleep 6
+          done
+          echo "Quality Gate não retornou status OK/ERROR a tempo"
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 'docker logs sonartmp'
+          exit 1
+
+      - name: Parar e remover SonarQube temporário
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
+            docker stop sonartmp || true
+            docker rm sonartmp || true
+          '
+
   deploy:
     needs: sonarqube-analysis
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy no Servidor
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 201.23.3.86
-          username: aluno
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            # Definir variáveis para facilitar execução com sudo
-            export PATH=$PATH:/usr/local/bin
-            
-            # Instalar Docker Compose de forma não interativa
-            if ! command -v docker-compose &> /dev/null; then
-              echo "Docker Compose não encontrado. Instalando..."
-              sudo -n true || (echo "Sudo sem senha não configurado" && exit 1)
-              sudo -E bash -c '
-                curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                chmod +x /usr/local/bin/docker-compose
-              '
-            fi
+      - name: Garantir que o diretório de deploy existe
+        run: |
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 'mkdir -p /home/aluno/projeto-vollo'
 
-            # Gerenciar container SonarQube de forma mais robusta
-            docker ps -a | grep sonartmp && docker stop sonartmp
-            docker ps -a | grep sonartmp && docker rm sonartmp
+      - name: Enviar arquivos para o servidor
+        run: |
+          scp -o StrictHostKeyChecking=no -r ${{ github.workspace }}/* aluno@201.23.3.86:/home/aluno/projeto-vollo/
 
-            docker pull sonarqube:community
-            docker run -d --name sonartmp -p 9000:9000 sonarqube:community
-            sleep 30 # Aumentar tempo de espera para inicialização
-
-            # Navegar para o diretório do projeto
-            cd ~/projeto-vollo || (echo "Diretório não encontrado" && exit 1)
-
-            # Garantir que docker-compose está disponível
-            docker-compose version || (echo "Docker Compose ainda não instalado" && exit 1)
-
-            # Atualizar imagens
-            docker-compose pull
-
-            # Parar e remover containers atuais
-            docker-compose down
-
-            # Subir novos containers
-            docker-compose up -d
-
-            # Limpar imagens antigas
-            docker image prune -f
+      - name: Executar deploy remoto
+        run: |
+          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
+            cd /home/aluno/projeto-vollo
+            docker compose down
+            docker compose pull
+            docker compose up -d --build
+          '
