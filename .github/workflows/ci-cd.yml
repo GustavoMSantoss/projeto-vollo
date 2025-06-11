@@ -85,39 +85,53 @@ jobs:
               exit 1
             fi
           EOF
-
+          
   deploy:
-   needs: sonarqube-analysis
-   runs-on: ubuntu-latest
-   steps:
-     - name: Deploy no Servidor
-       uses: appleboy/ssh-action@v1.0.3
-       with:
-         host: 201.23.3.86
-         username: aluno
-         key: ${{ secrets.SERVER_SSH_KEY }}
-         script: |
-           # Instalar Docker Compose se não estiver presente
-           if ! command -v docker-compose &> /dev/null; then
-             echo "Docker Compose não encontrado. Instalando..."
-             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-             sudo chmod +x /usr/local/bin/docker-compose
-           fi
+    needs: sonarqube-analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy no Servidor
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 201.23.3.86
+          username: aluno
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Definir variáveis para facilitar execução com sudo
+            export PATH=$PATH:/usr/local/bin
+            
+            # Instalar Docker Compose de forma não interativa
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Docker Compose não encontrado. Instalando..."
+              sudo -n true || (echo "Sudo sem senha não configurado" && exit 1)
+              sudo -E bash -c '
+                curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                chmod +x /usr/local/bin/docker-compose
+              '
+            fi
 
-           # Subir SonarQube no Servidor Remoto (se necessário)
-           docker stop sonartmp || true
-           docker rm sonartmp || true
-           docker pull sonarqube:community
-           docker run -d --name sonartmp -p 9000:9000 sonarqube:community
-           sleep 10  # Aguardar a inicialização
+            # Gerenciar container SonarQube de forma mais robusta
+            docker ps -a | grep sonartmp && docker stop sonartmp
+            docker ps -a | grep sonartmp && docker rm sonartmp
 
-           # Navegar para o diretório do projeto
-           cd ~/projeto-vollo
-           # Atualizar imagens
-           docker-compose pull
-           # Parar containers atuais
-           docker-compose down
-           # Subir novos containers
-           docker-compose up -d
-           # Limpar imagens antigas
-           docker image prune -f
+            docker pull sonarqube:community
+            docker run -d --name sonartmp -p 9000:9000 sonarqube:community
+            sleep 30 # Aumentar tempo de espera para inicialização
+
+            # Navegar para o diretório do projeto
+            cd ~/projeto-vollo || (echo "Diretório não encontrado" && exit 1)
+
+            # Garantir que docker-compose está disponível
+            docker-compose version || (echo "Docker Compose ainda não instalado" && exit 1)
+
+            # Atualizar imagens
+            docker-compose pull
+
+            # Parar e remover containers atuais
+            docker-compose down
+
+            # Subir novos containers
+            docker-compose up -d
+
+            # Limpar imagens antigas
+            docker image prune -f
