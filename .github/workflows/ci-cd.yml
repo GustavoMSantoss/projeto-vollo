@@ -90,27 +90,34 @@ jobs:
    needs: sonarqube-analysis
    runs-on: ubuntu-latest
    steps:
-    - name: Deploy no Servidor
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: 201.23.3.86
-        username: aluno
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        script: |
-          # Instalar Docker Compose se não estiver presente
-          if ! command -v docker-compose &> /dev/null; then
-            echo "Docker Compose não encontrado. Instalando..."
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-          fi
+     - name: Deploy no Servidor
+       uses: appleboy/ssh-action@v1.0.3
+       with:
+         host: 201.23.3.86
+         username: aluno
+         key: ${{ secrets.SERVER_SSH_KEY }}
+         script: |
+           # Instalar Docker Compose se não estiver presente
+           if ! command -v docker-compose &> /dev/null; then
+             echo "Docker Compose não encontrado. Instalando..."
+             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+             sudo chmod +x /usr/local/bin/docker-compose
+           fi
 
-          # Navegar para o diretório do projeto
-          cd ~/projeto-vollo
-          # Atualizar imagens
-          docker-compose pull
-          # Parar containers atuais
-          docker-compose down
-          # Subir novos containers
-          docker-compose up -d
-          # Limpar imagens antigas
-          docker image prune -f
+           # Subir SonarQube no Servidor Remoto (se necessário)
+           docker stop sonartmp || true
+           docker rm sonartmp || true
+           docker pull sonarqube:community
+           docker run -d --name sonartmp -p 9000:9000 sonarqube:community
+           sleep 10  # Aguardar a inicialização
+
+           # Navegar para o diretório do projeto
+           cd ~/projeto-vollo
+           # Atualizar imagens
+           docker-compose pull
+           # Parar containers atuais
+           docker-compose down
+           # Subir novos containers
+           docker-compose up -d
+           # Limpar imagens antigas
+           docker image prune -f
