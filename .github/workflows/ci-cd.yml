@@ -173,12 +173,7 @@ jobs:
 
       - name: Enviar arquivos para o servidor
         run: |
-          # Sincronizar todos os arquivos usando rsync
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
-            --exclude='.git' \
-            --exclude='.github' \
-            ${{ github.workspace }}/ \
-            aluno@201.23.3.86:/home/aluno/projeto-vollo/
+          scp -o StrictHostKeyChecking=no -r * aluno@201.23.3.86:/home/aluno/projeto-vollo/
 
       - name: Executar deploy remoto
         run: |
