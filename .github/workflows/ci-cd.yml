@@ -165,12 +165,10 @@ jobs:
           DB_PASS=${{ secrets.DB_PASS }}
           EOF
 
-      - name: Criar diretório de deploy e ajustar permissões
+      - name: Criar diretório de deploy
         run: |
           ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
             mkdir -p /home/aluno/projeto-vollo
-            chmod 775 /home/aluno/projeto-vollo
-            chown aluno:aluno /home/aluno/projeto-vollo
           '
 
       - name: Enviar arquivos para o servidor
