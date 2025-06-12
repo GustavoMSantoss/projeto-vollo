@@ -170,7 +170,8 @@ jobs:
       - name: Criar diretório de deploy
         run: |
           ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
-            mkdir -p /home/aluno/projeto-vollo
+            rm -rf /home/aluno/projeto-vollo
+            mkdir /home/aluno/projeto-vollo
           '
 
       - name: Enviar arquivos para o servidor
