@@ -3,9 +3,13 @@ import { toast } from 'react-toastify';
 export const tratarErroAPI = (erro) => {
   if (erro.response) {
     // Erro com resposta do servidor
+    if (erro.response.status === 400 && erro.response.data?.errors) {
+      erro.response.data.errors.forEach(e => toast.error(`${e.campo}: ${e.mensagem}`));
+      return;
+    }
     switch (erro.response.status) {
       case 400:
-        toast.error('Dados inválidos. Verifique as informações.');
+        toast.error(erro.response.data?.error || 'Dados inválidos. Verifique as informações.');
         break;
       case 401:
         toast.error('Não autorizado. Faça login novamente.');

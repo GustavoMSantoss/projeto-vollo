@@ -20,6 +20,9 @@ const Aluno = database.define('Aluno', {
     type: DataTypes.INTEGER,
     allowNull: true
   }
+}, {
+  tableName: 'alunos',      // força o nome da tabela para minúsculo e plural
+  underscored: true         // (opcional) usa snake_case nas colunas
 });
 
 module.exports = Aluno;

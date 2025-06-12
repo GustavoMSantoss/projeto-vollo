@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const { Sequelize } = require('sequelize');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { Sequelize } = require('sequelize');
+const alunoRoutes = require('./src/routes/aluno.routes');
 require('dotenv').config();
 
 console.log('🚀 Inicializando configurações do backend...');
@@ -16,11 +17,10 @@ console.log(`Variáveis de ambiente:
 
 class App {
   constructor() {
-    console.log('🔧 Construindo aplicação...');
     this.express = express();
     this.PORT = process.env.PORT || 3000;
     this.sequelize = null;
-    
+
     try {
       this.initializeDatabase();
       this.middlewares();
@@ -34,66 +34,43 @@ class App {
   }
 
   initializeDatabase() {
-    console.log('🗄️ Inicializando conexão com banco de dados...');
-    try {
-      console.log('🔄 Configurações de conexão:', {
+    this.sequelize = new Sequelize(
+      process.env.DB_NAME || 'vollo_db',
+      process.env.DB_USER || 'postgres',
+      process.env.DB_PASS || '',
+      {
         host: process.env.DB_HOST || 'database',
         port: process.env.DB_PORT || 5432,
-        database: process.env.DB_NAME || 'vollo_db',
-        user: process.env.DB_USER || 'postgres'
-      });
-
-      this.sequelize = new Sequelize(
-        process.env.DB_NAME || 'vollo_db',
-        process.env.DB_USER || 'postgres',
-        process.env.DB_PASS || 'Shikimori2031.',
-        {
-          host: process.env.DB_HOST || 'database',
-          port: process.env.DB_PORT || 5432,
-          dialect: 'postgres',
-          logging: (msg) => console.log(`🔍 Sequelize: ${msg}`),
-          define: {
-            timestamps: true,
-            underscored: true
-          },
-          pool: {
-            max: 5,
-            min: 0,
-            acquire: 30000,
-            idle: 10000
-          }
+        dialect: 'postgres',
+        logging: (msg) => console.log(`🔍 Sequelize: ${msg}`),
+        define: {
+          timestamps: true,
+          underscored: true
+        },
+        pool: {
+          max: 5,
+          min: 0,
+          acquire: 30000,
+          idle: 10000
         }
-      );
-      console.log('✅ Configuração do Sequelize concluída');
-    } catch (error) {
-      console.error('❌ Erro ao inicializar o banco de dados:', error);
-      throw error;
-    }
+      }
+    );
+    console.log('✅ Configuração do Sequelize concluída');
   }
 
   middlewares() {
-    // Segurança
     this.express.use(helmet());
-
-    // Rate limiting
-    const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 100 // limite de 100 requisições por IP
-    });
-    this.express.use(limiter);
-
-    // CORS
+    this.express.use(rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 100
+    }));
     this.express.use(cors({
       origin: process.env.CORS_ORIGIN || '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization']
     }));
-
-    // Parsers
     this.express.use(express.json());
     this.express.use(express.urlencoded({ extended: true }));
-
-    // Cabeçalhos adicionais
     this.express.use((req, res, next) => {
       res.setHeader('X-Powered-By', 'Vollo Backend');
       next();
@@ -101,7 +78,6 @@ class App {
   }
 
   routes() {
-    // Rota raiz
     this.express.get('/', (req, res) => {
       res.json({
         message: 'Backend Vollo API',
@@ -112,8 +88,8 @@ class App {
       });
     });
 
-    // Adicionar rotas específicas aqui
-    // this.express.use('/api/alunos', alunoRoutes);
+    // Aqui está o uso correto das rotas de alunos:
+    this.express.use('/api/alunos', alunoRoutes);
   }
 
   errorHandling() {
@@ -136,17 +112,12 @@ class App {
     });
   }
 
- async testDatabaseConnection() {
-    console.log('🔍 Tentando autenticar conexão com banco de dados...');
+  async testDatabaseConnection() {
     try {
-      // Aumentar timeout da conexão
-      await this.sequelize.authenticate({
-        timeout: 20000 // 20 segundos
-      });
+      await this.sequelize.authenticate({ timeout: 20000 });
       console.log('✅ Conexão com o banco de dados estabelecida com sucesso.');
     } catch (error) {
       console.error('❌ Não foi possível conectar ao banco de dados:', error.message);
-      console.error('Detalhes do erro:', JSON.stringify(error, null, 2));
       throw error;
     }
   }
@@ -154,23 +125,11 @@ class App {
   async start() {
     try {
       console.log('🚀 Iniciando servidor...');
-      
-      // Testar conexão com o banco
       await this.testDatabaseConnection();
-      
-      // Sincronizar modelos (opcional)
-      console.log('🔄 Sincronizando modelos do banco de dados...');
-      await this.sequelize.sync({
-        // force: false,
-        // alter: true
-      });
-      
-      // Iniciar servidor
+      await this.sequelize.sync();
       return new Promise((resolve, reject) => {
         const server = this.express.listen(this.PORT, '0.0.0.0', () => {
           console.log(`🌐 Servidor rodando na porta ${this.PORT}`);
-          console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-          console.log(`📅 Timestamp: ${new Date().toISOString()}`);
           resolve(server);
         }).on('error', (error) => {
           console.error('❌ Erro ao iniciar o servidor:', error);
@@ -192,7 +151,6 @@ app.start();
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
-
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
 });

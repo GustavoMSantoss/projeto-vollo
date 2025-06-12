@@ -1,13 +1,14 @@
 const express = require('express');
+const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 8129;
+const PORT = process.env.PORT || 3001;
 
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Frontend Vollo API',
-    status: 'Running',
-    timestamp: new Date().toISOString()
-  });
+// Serve arquivos estáticos do build do React
+app.use(express.static(path.join(__dirname, 'build')));
+
+// Rota principal para SPA (React Router)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {

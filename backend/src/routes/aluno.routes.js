@@ -4,23 +4,24 @@ const Validacoes = require('../middlewares/validacoes');
 
 const router = express.Router();
 
+// ...existing code...
 router.post(
-  '/alunos', 
+  '/',
   Validacoes.validarCriacaoAluno(),
   Validacoes.validarRequisicao,
   AlunoController.create
 );
 
-router.get('/alunos', AlunoController.findAll);
-router.get('/alunos/:id', AlunoController.findById);
+router.get('/', AlunoController.findAll);
+router.get('/:id', AlunoController.findById);
 
 router.put(
-  '/alunos/:id', 
+  '/:id',
   Validacoes.validarCriacaoAluno(),
   Validacoes.validarRequisicao,
   AlunoController.update
 );
 
-router.delete('/alunos/:id', AlunoController.delete);
+router.delete('/:id', AlunoController.delete);
 
 module.exports = router;
