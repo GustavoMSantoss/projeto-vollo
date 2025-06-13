@@ -1,19 +1,13 @@
-# Exemplo de Dockerfile para frontend
-FROM node:18-alpine
-
+# Etapa 1: build do React
+FROM node:18-alpine as build
 WORKDIR /app
-
-# Copiar arquivos de dependências
 COPY package*.json ./
-
-# Instalar dependências
 RUN npm install
-
-# Copiar todo o código
 COPY . .
+RUN npm run build
 
-# Expor porta
-EXPOSE 8129
-
-# Comando para iniciar
-CMD ["npm", "start"]
+# Etapa 2: imagem final com Nginx
+FROM nginx:alpine
+COPY --from=build /app/build /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
