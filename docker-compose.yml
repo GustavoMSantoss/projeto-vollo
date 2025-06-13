@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     image: morerao/vollo-backend:${BACKEND_TAG:-latest}
     ports:
-      - "8128:3000"  # Ajustei para corresponder à URL de ambiente
+      - "8128:8128"  # Ajustei para corresponder à URL de ambiente
     depends_on:
       database:
         condition: service_healthy
@@ -28,7 +28,7 @@ services:
       dockerfile: Dockerfile
     image: morerao/vollo-frontend:${FRONTEND_TAG:-latest}
     ports:
-      - "8129:3001"  # Ajustei a porta
+      - "8129:8129"  # Ajustei a porta
     depends_on:
       - backend
     environment:
