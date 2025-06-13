@@ -1,46 +1,23 @@
 version: '3.8'
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
     image: morerao/vollo-backend:${BACKEND_TAG:-latest}
     ports:
-      - "8128:8128"  # Ajustei para corresponder à URL de ambiente
-    depends_on:
-      database:
-        condition: service_healthy
+      - "8128:8128"
     environment:
-      - DB_HOST=database
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-vollo_db}
-      - DB_PASS=Shikimori2031.
       - DB_USER=${DB_USER:-postgres}
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-    networks:
-      - vollo_network
-
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME}
+      # ...outras variáveis...
   frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile
     image: morerao/vollo-frontend:${FRONTEND_TAG:-latest}
     ports:
-      - "8129:8129"  # Ajustei a porta
-    depends_on:
-      - backend
+      - "8129:8129"
     environment:
       - BACKEND_URL=http://backend:8128
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - vollo_network
-
   database:
     image: postgres:13
+    # ...configuração do banco...
     ports:
       - "8130:5432"
     environment:

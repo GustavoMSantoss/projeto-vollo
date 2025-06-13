@@ -173,24 +173,18 @@ jobs:
             mkdir -p /home/aluno/dep-vollo
           '
 
-      - name: Enviar arquivos para o servidor
+      - name: Enviar arquivos de configuração para o servidor
         run: |
           scp -o StrictHostKeyChecking=no .env aluno@201.23.3.86:/home/aluno/dep-vollo/
           scp -o StrictHostKeyChecking=no docker-compose.yml aluno@201.23.3.86:/home/aluno/dep-vollo/
-          scp -o StrictHostKeyChecking=no -r backend frontend aluno@201.23.3.86:/home/aluno/dep-vollo/
 
       - name: Executar deploy remoto
         run: |
           ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
             cd /home/aluno/dep-vollo
-            docker login
+            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
             docker compose pull
             docker compose down
             docker compose up -d --build
-          '
-
-      - name: Limpar imagens antigas
-        run: |
-          ssh -o StrictHostKeyChecking=no aluno@201.23.3.86 '
             docker image prune -f
           '
